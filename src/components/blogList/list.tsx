@@ -1,5 +1,6 @@
 import Link from "next/link";
-import Color from "colorjs.io";
+// @ts-ignore
+import Color from "colorjs.io/dist/color.js";
 import { PostDetail, getAllPostsMeta } from "@/data/post";
 import { sans } from "@/fonts/fonts";
 
