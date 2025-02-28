@@ -1,6 +1,7 @@
 {
     "prettier.configPath": ".prettierrc",
     "cSpell.words": [
-        "colorjs"
+        "colorjs",
+        "Vegetasuper"
     ]
 }
