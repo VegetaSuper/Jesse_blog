@@ -1,0 +1,189 @@
+---
+title: 高德地图 WebAPI 轨迹动画
+date: "2025-02-28"
+spoiler: 使用高德地图 WebAPI 实现历史轨迹、实时轨迹、倍速播放
+
+---
+
+技术选型:
+
+- vue3
+- @amap/amap-jsapi-loader
+
+进入正题
+
+### 安装高德地图api
+
+```shell
+npm i @amap/amap-jsapi-loader --save
+```
+
+### 引入模拟数据
+文件(index.html)
+
+```html
+<!-- 数据来源：百度地图 -->
+<script src="//mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/track.js"></script>
+```
+
+### AMap全局挂载
+
+文件(src/main.js)
+
+```js
+import AMapLoader from "@amap/amap-jsapi-loader";
+
+try {
+    window._AMapSecurityConfig = {
+        securityJsCode: import.meta.env.VITE_APP_AMAP_SECRET, // 高德地图申请
+    };
+
+    window.AMap = await AMapLoader.load({
+        key: import.meta.env.VITE_APP_AMAP_KEY, // 高德地图申请
+        version: "2.0",
+        plugins: ["AMap.MoveAnimation"],
+    });
+} catch (error) {
+    console.error("AMap init", error);
+}
+```
+
+### 实时地图
+
+文件(src/components/currentTrack.vue)
+
+```vue
+<script setup>
+import { onMounted, onUnmounted, ref } from "vue";
+
+const defaultPoint = [81, 43]; // 默认点
+const mapRef = ref(); // 地图容器
+const map = ref(); // 地图实例
+const marker = ref(); // 移动点
+const polyline = ref(); // 轨迹线
+const passPolyline = ref(); // 经过线
+
+const lastPoint = ref(); // 上一次的终点
+
+// 地图初始化
+async function initMap() {
+    try {
+        // 创建地图实例
+        map = new AMap.Map(mapRef.value, {
+            resizeEnable: true,
+            viewMode: "2D",
+            zoom: 18,
+            center: defaultPoint,
+        });
+
+        // 创建标记点
+        marker = new AMap.Marker({
+            map,
+            position: defaultPoint,
+            offset: new AMap.Pixel(-10, -10),
+        });
+
+        // 绑定事件监听
+        bindMarkerEvents();
+
+        // 加载轨迹数据
+        loadData();
+    } catch (error) {
+        console.error("initMap", error);
+    }
+}
+
+// 事件监听相关
+function bindMarkerEvents() {
+    marker.value.on("moving", movingListener);
+    marker.value.on("movealong", movealongListener);
+}
+
+// marker移动
+function movingListener(e) {
+    passedPolyline.value.setPath(e.passedPath);
+    map.value.setCenter(e.target.getPosition(), true);
+}
+
+// marker 结束移动
+function movealongListener(e) {
+    lastPoint.value = e.passedPath[e.passedPath.length - 1];
+    loadData();
+}
+
+// 轨迹绘制 & 开始动画
+function renderLine(path) {
+    // 创建轨迹线
+    polyline.value = new AMap.Polyline({
+        map: map.value,
+        path,
+        showDir: true,
+        strokeColor: "#28F",
+        strokeOpacity: 1,
+        strokeWeight: 8,
+        strokeStyle: "solid",
+    });
+
+    // 创建经过线
+    passedPolyline.value = new AMap.Polyline({
+        map: map.value,
+        strokeColor: "#AF5",
+        strokeWeight: 2,
+        strokeOpacity: 1,
+        strokeStyle: "solid",
+    });
+
+    marker.value.moveAlong(path, {
+        duration: 500,
+        autoRotation: true,
+    });
+}
+
+// 获取轨迹数据，主要是经纬度
+async function loadData() {
+    try {
+        // 模拟请求
+        const res = demo_data.splice(0, 10);
+
+        const paths = res.map((item) => {
+            const [longitude, latitude] = item;
+            // 高德地图有数据类型要求
+            return [Number(longitude), Number(latitude)];
+        });
+
+        // 如果有上一次请求的终点，需要拼接，防止轨迹线中断
+        if (unref(lastPoint)) paths.unshift(unref(lastPoint));
+
+        renderLine(paths);
+    } catch (error) {
+        console.error("loadData", error);
+    }
+}
+
+// 销毁地图
+function destroyMap() {
+    // 清除事件监听
+    marker.value.off("moving", movingListener);
+    marker.value.off("movealong", movealongListener);
+
+    marker.value.stopMove();
+    map.value.remove(marker.value);
+    map.value.remove(polyline.value);
+    map.value.remove(passedPolyline.value);
+
+    map.value.destroy();
+}
+
+onMounted(() => {
+    initMap();
+});
+
+onUnmounted(() => {
+    destroyMap();
+});
+</script>
+
+<template>
+    <div ref="mapRef" class="h-full w-full"></div>
+</template>
+```
